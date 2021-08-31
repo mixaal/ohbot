@@ -1,7 +1,6 @@
 import cv2
 import dlib
 import numpy as np
-import imutils
 from imutils import face_utils
 from scipy.spatial import distance as dist
 
@@ -82,7 +81,7 @@ def facial_detection(image):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     # 1 - means upsampling
     rects = detector(gray, 0)
-    print(rects)
+    #print(rects)
     for rect in rects:
         # determine the facial landmarks for the face region, then
         # convert the facial landmark (x, y)-coordinates to a NumPy
@@ -108,7 +107,7 @@ def facial_detection(image):
         threshold = cv2.getTrackbarPos('threshold', 'frame')
         if threshold<=0:
             threshold = 85
-        print(threshold)
+        #print(threshold)
         _, thresh = cv2.threshold(eyes_gray, threshold, 255, cv2.THRESH_BINARY)
         thresh = cv2.erode(thresh, None, iterations=2)
         thresh = cv2.dilate(thresh, None, iterations=4)
@@ -117,13 +116,12 @@ def facial_detection(image):
         mid = (shape[42][0] + shape[39][0]) // 2
         contouring(thresh[:, 0:mid], mid, frame)
         contouring(thresh[:, mid:], mid, frame, True)
-       # contouring(thresh, threshold, frame, True)
-       # contouring(thresh, threshold, frame, False)
 
         leftEAR = eye_aspect_ratio(leftEye)
         rightEAR = eye_aspect_ratio(rightEye)
         # average the eye aspect ratio together for both eyes
         ear = (leftEAR + rightEAR) / 2.0
+        print("ear={}".format(ear))
 
         leftEyeHull = cv2.convexHull(leftEye)
         rightEyeHull = cv2.convexHull(rightEye)
@@ -131,6 +129,7 @@ def facial_detection(image):
         cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
         if ear < EYE_AR_THRESH:
             COUNTER += 1
+            print("BLINK, counter={}".format(COUNTER))
         # otherwise, the eye aspect ratio is not below the blink
         # threshold
         else:
