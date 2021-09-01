@@ -4,6 +4,7 @@ import numpy as np
 from imutils import face_utils
 from scipy.spatial import distance as dist
 from events import LeftEyePupil, RightEyePupil, LeftEyeBorder, RightEyeBorder, EyeAspectRatio, BlinkEvent
+from mathutils import ShapeContour
 
 
 # Eye tracking: https://towardsdatascience.com/real-time-eye-tracking-using-opencv-and-dlib-b504ca724ac6
@@ -32,20 +33,18 @@ class FaceTracker(object):
         self.left_eye_idx = [x for x in range(self.lStart, self.lEnd)]
         self.right_eye_idx = [x for x in range(self.rStart, self.rEnd)]
 
-    def contouring(self, thresh, mid, img, right=False):
+    def contouring(self, thresh, mid, img, left=False):
         cnts, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         try:
             cnt = max(cnts, key=cv2.contourArea)
-            M = cv2.moments(cnt)
-            cx = int(M['m10']/M['m00'])
-            cy = int(M['m01']/M['m00'])
-            if right:
+            matrix = cv2.moments(cnt)
+            cx = int(matrix['m10']/matrix['m00'])
+            cy = int(matrix['m01']/matrix['m00'])
+            if left:
                 cx += mid
-            # print("cx={} cy={}".format(cx, cy))
-            if right:
-                self.queue.put(RightEyePupil(cx, cy))
-            else:
                 self.queue.put(LeftEyePupil(cx, cy))
+            else:
+                self.queue.put(RightEyePupil(cx, cy))
             cv2.circle(img, (cx, cy), 4, (0, 0, 255), 2)
         except:
             pass
@@ -54,13 +53,13 @@ class FaceTracker(object):
     def eye_aspect_ratio(eye):
         # compute the euclidean distances between the two sets of
         # vertical eye landmarks (x, y)-coordinates
-        A = dist.euclidean(eye[1], eye[5])
-        B = dist.euclidean(eye[2], eye[4])
+        a = dist.euclidean(eye[1], eye[5])
+        b = dist.euclidean(eye[2], eye[4])
         # compute the euclidean distance between the horizontal
         # eye landmark (x, y)-coordinates
-        C = dist.euclidean(eye[0], eye[3])
+        c = dist.euclidean(eye[0], eye[3])
         # compute the eye aspect ratio
-        ear = (A + B) / (2.0 * C)
+        ear = (a + b) / (2.0 * c)
         # return the eye aspect ratio
         return ear
 
@@ -89,8 +88,23 @@ class FaceTracker(object):
                 cv2.circle(frame, (x, y), 2, (0, 0, 255), -1)
             # extract the left and right eye coordinates, then use the
             # coordinates to compute the eye aspect ratio for both eyes
-            leftEye = shape[self.lStart:self.lEnd]
-            rightEye = shape[self.rStart:self.rEnd]
+            left_eye = shape[self.lStart:self.lEnd]
+            right_eye = shape[self.rStart:self.rEnd]
+
+            left_eye_shape = ShapeContour(left_eye)
+            right_eye_shape = ShapeContour(right_eye)
+
+            (left_eye_min_x, left_eye_min_y) = left_eye_shape.min()
+            (left_eye_max_x, left_eye_max_y) = left_eye_shape.max()
+
+            (right_eye_min_x, right_eye_min_y) = right_eye_shape.min()
+            (right_eye_max_x, right_eye_max_y) = right_eye_shape.max()
+
+            cv2.rectangle(image, (left_eye_min_x, left_eye_min_y), (left_eye_max_x, left_eye_max_y), (255, 0, 0), 2)
+            cv2.rectangle(image, (right_eye_min_x, right_eye_min_y), (right_eye_max_x, right_eye_max_y), (255, 0, 0), 2)
+            self.queue.put(LeftEyeBorder(left_eye_min_x, left_eye_min_y, left_eye_max_x, left_eye_max_y))
+            self.queue.put(RightEyeBorder(right_eye_min_x, right_eye_min_y, right_eye_max_x, right_eye_max_y))
+
             mask = np.zeros(frame.shape[:2], dtype=np.uint8)
             mask = FaceTracker.eye_on_mask(mask, shape, self.left_eye_idx)
             mask = FaceTracker.eye_on_mask(mask, shape, self.right_eye_idx)
@@ -114,17 +128,17 @@ class FaceTracker(object):
             self.contouring(thresh[:, 0:mid], mid, frame)
             self.contouring(thresh[:, mid:], mid, frame, True)
 
-            leftEAR = FaceTracker.eye_aspect_ratio(leftEye)
-            rightEAR = FaceTracker.eye_aspect_ratio(rightEye)
+            left_ear = FaceTracker.eye_aspect_ratio(left_eye)
+            right_ear = FaceTracker.eye_aspect_ratio(right_eye)
             # average the eye aspect ratio together for both eyes
-            ear = (leftEAR + rightEAR) / 2.0
+            ear = (left_ear + right_ear) / 2.0
             # print("ear={}".format(ear))
             self.queue.put(EyeAspectRatio(ear))
 
-            leftEyeHull = cv2.convexHull(leftEye)
-            rightEyeHull = cv2.convexHull(rightEye)
-            cv2.drawContours(frame, [leftEyeHull], -1, (0, 255, 0), 1)
-            cv2.drawContours(frame, [rightEyeHull], -1, (0, 255, 0), 1)
+            left_eye_hull = cv2.convexHull(left_eye)
+            right_eye_hull = cv2.convexHull(right_eye)
+            cv2.drawContours(frame, [left_eye_hull], -1, (0, 255, 0), 1)
+            cv2.drawContours(frame, [right_eye_hull], -1, (0, 255, 0), 1)
             if ear < self.EYE_AR_THRESH:
                 self.COUNTER += 1
                 self.queue.put(BlinkEvent(ear))
