@@ -30,6 +30,8 @@ while True:
     frame = cv2.flip(frame, 1)
     # image = detect_face(frame)
     (image, eyes) = face_tracker.facial_detection(frame)
+    (face_image, face) = face_tracker.detect_face(frame)
+
 
     # Saves image of the current frame in jpg file
     # name = 'frame' + str(currentFrame) + '.jpg'
@@ -40,6 +42,7 @@ while True:
 #    frame *= 2
 #    frame = np.clip(frame, 0, 255)
     cv2.imshow('frame', image)
+    #cv2.imshow('face', face_image)
     if eyes is not None:
         cv2.imshow('eyes', eyes)
     if cv2.waitKey(1) & 0xFF == ord('q'):

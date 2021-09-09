@@ -3,7 +3,7 @@ import dlib
 import numpy as np
 from imutils import face_utils
 from scipy.spatial import distance as dist
-from events import LeftEyePupil, RightEyePupil, LeftEyeBorder, RightEyeBorder, EyeAspectRatio, BlinkEvent
+from events import LeftEyePupil, RightEyePupil, LeftEyeBorder, RightEyeBorder, EyeAspectRatio, BlinkEvent, FaceBorder
 from mathutils import ShapeContour
 
 
@@ -165,6 +165,8 @@ class FaceTracker(object):
         blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
         self.net.setInput(blob)
         detections = self.net.forward()
+        face = []
+        current_face_confidence = 0
         for i in range(0, detections.shape[2]):
             # extract the confidence (i.e., probability) associated with the
             # prediction
@@ -180,8 +182,12 @@ class FaceTracker(object):
                 # draw the bounding box of the face along with the associated
                 # probability
                 text = "{:.2f}%".format(confidence * 100)
+                if confidence > current_face_confidence:
+                    current_face_confidence = confidence
+                    face = [startX, startY, endX, endY]
+                    self.queue.put(FaceBorder(startX, startY, endX, endY))
                 y = startY - 10 if startY - 10 > 10 else startY + 10
                 cv2.rectangle(image, (startX, startY), (endX, endY), (0, 0, 255), 2)
                 cv2.putText(image, text, (startX, y), cv2.FONT_HERSHEY_SIMPLEX, 2.45, (0, 0, 255), 2)
         # cv2.imwrite('/tmp/out.jpg', image)
-        return image
+        return image, face

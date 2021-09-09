@@ -1,7 +1,7 @@
 from threading import Thread
 import time
 
-from events import LeftEyePupil, RightEyePupil, EyeAspectRatio, BlinkEvent, LeftEyeBorder, RightEyeBorder
+from events import LeftEyePupil, RightEyePupil, EyeAspectRatio, BlinkEvent, LeftEyeBorder, RightEyeBorder, FaceBorder
 from ohbot import ohbot
 from mathutils import MovingAverage
 
@@ -15,16 +15,20 @@ class RobotHandler(Thread):
         ohbot.reset()
         self.last_lid_update = time.time()
         self.last_eye_update = time.time()
+        self.last_head_update = time.time()
         self.lid_mae = MovingAverage(20)
         self.left_eye_pos = None
         self.right_eye_pos = None
         self.left_eye_pupil = None
         self.right_eye_pupil = None
+        self.face_border = None
 
     def run(self):
         while True:
             item = self.queue.get()
             print(item)
+            if isinstance(item, FaceBorder):
+                self.face_border = item
             if isinstance(item, LeftEyeBorder):
                 self.left_eye_pos = item
             if isinstance(item, RightEyeBorder):
@@ -49,6 +53,35 @@ class RobotHandler(Thread):
                 self.blink_aspect_ratio = item.current_aspect
             self.queue.task_done()
             self.ohbot_eye_move()
+            self.ohbot_head_turn()
+
+    def ohbot_head_turn(self):
+        if self.face_border is None:
+            return
+        now = time.time()
+        if now - self.last_head_update > 0.2:
+            dx1 = 0
+            dx2 = 0
+            if self.right_eye_pos is not None:
+                dx1 = self.right_eye_pos.lx - self.face_border.lx
+                if dx1 < 0:
+                    dx1 = 0
+            if self.left_eye_pos is not None:
+                dx2 = self.face_border.rx - self.left_eye_pos.rx
+                if dx2 < 0:
+                    dx2 = 0
+            turn = 0
+            if dx1 < dx2:
+                if dx2 != 0:
+                    turn = -1 + dx1 / dx2
+            else:
+                if dx1 != 0:
+                    turn = dx2 / dx1
+            head_pos = int(5.0 + 1.5 * turn)
+            print("head_pos={} t={} dx1={} dx2={}".format(head_pos, turn, dx1, dx2))
+            #head_pos = 5
+            ohbot.move(ohbot.HEADTURN, head_pos)
+            self.last_head_update = time.time()
 
     def ohbot_lid_blink(self, difference):
         now = time.time()
@@ -74,7 +107,7 @@ class RobotHandler(Thread):
             x = (l_dx + r_dx) * 0.5
             y = (l_dy + r_dy) * 0.5
             x = 1.8 * l_dx
-            y = 2.5 * l_dy
+            y = 5.5 * l_dy
             print("x={} y={}".format(x,y))
 
             xx = 2 + 6*x
