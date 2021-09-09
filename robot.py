@@ -1,7 +1,8 @@
 from threading import Thread
 import time
 
-from events import LeftEyePupil, RightEyePupil, EyeAspectRatio, BlinkEvent, LeftEyeBorder, RightEyeBorder, FaceBorder
+from events import LeftEyePupil, RightEyePupil, EyeAspectRatio, BlinkEvent, LeftEyeBorder, RightEyeBorder, FaceBorder, \
+    RecordingStart
 from ohbot import ohbot
 from mathutils import MovingAverage
 
@@ -23,10 +24,18 @@ class RobotHandler(Thread):
         self.right_eye_pupil = None
         self.face_border = None
 
+    @staticmethod
+    def append(item):
+        file_object = open('recording.csv', 'a')
+        file_object.write(str(item)+"\n")
+        file_object.close()
+
     def run(self):
+        self.append(RecordingStart())
         while True:
             item = self.queue.get()
             print(item)
+            self.append(item)
             if isinstance(item, FaceBorder):
                 self.face_border = item
             if isinstance(item, LeftEyeBorder):
